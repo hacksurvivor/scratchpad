@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "scratchpad": {
+      "command": "node",
+      "args": ["./mcp/server.mjs"],
+      "cwd": ".",
+      "default_tools_approval_mode": "writes",
+      "env_vars": [
+        "CODEX_HOME",
+        "CODEX_SESSION_ID",
+        "CODEX_WORKSPACE_ROOT",
+        "CODEX_PROJECT_DIR",
+        "PWD",
+        "TMPDIR",
+        "SCRATCHPAD_ROOT",
+        "SCRATCHPAD_TTL_DAYS",
+        "SCRATCHPAD_PROJECT_DIR"
+      ]
+    }
+  }
+}

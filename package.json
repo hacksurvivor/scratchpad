@@ -1,0 +1,14 @@
+{
+  "name": "codex-scratchpad-plugin",
+  "version": "0.1.4",
+  "private": true,
+  "type": "module",
+  "description": "Runtime dependencies for the Scratchpad Codex plugin MCP server.",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.4.3"
+  }
+}

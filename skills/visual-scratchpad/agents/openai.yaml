@@ -1,0 +1,4 @@
+interface:
+  display_name: "Visual Scratchpad"
+  short_description: "Render, inspect, and visibly publish UI variants"
+  default_prompt: "Use $visual-scratchpad to render and compare visual design variants, inspect their pixels, and publish the actual images with scratchpad_present before editing the product."

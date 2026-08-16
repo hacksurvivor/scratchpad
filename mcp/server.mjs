@@ -8,13 +8,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
 const SERVER_NAME = "scratchpad";
-const SERVER_VERSION = "0.1.4+codex.20260812020134";
+const SERVER_VERSION = "0.2.0+codex.20260816020137";
 const DEFAULT_TTL_DAYS = 7;
 
 // ---------------------------------------------------------------- resolution
@@ -39,6 +38,7 @@ function resolveProjectDir() {
   for (const dir of candidates) {
     if (!dir || !path.isAbsolute(dir)) continue;
     if (isInsidePlugin(dir)) continue; // never scope a scratchpad to the plugin
+    if (path.parse(dir).root === path.resolve(dir)) continue; // `/` is not a project
     if (fs.existsSync(dir)) return dir;
   }
   const cwd = process.cwd();
@@ -66,6 +66,7 @@ function resolveRoot() {
 
 function resolveSessionId() {
   return (
+    process.env.CODEX_THREAD_ID ||
     process.env.CODEX_SESSION_ID ||
     process.env.SCRATCHPAD_SESSION_ID ||
     randomUUID()
@@ -178,107 +179,48 @@ const INLINE_IMAGE_TYPES = new Set([
 ]);
 const MAX_INLINE_IMAGE_BYTES = 12 * 1024 * 1024;
 
-function artifactFiles(target, prefix = "") {
-  const stat = fs.statSync(target);
-  if (stat.isFile()) {
-    return [{ abs: target, rel: prefix || path.basename(target), stat }];
-  }
-  if (!stat.isDirectory()) return [];
-
-  const files = [];
-  for (const entry of fs
-    .readdirSync(target, { withFileTypes: true })
-    .sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.isSymbolicLink()) continue;
-    const abs = path.join(target, entry.name);
-    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) files.push(...artifactFiles(abs, rel));
-    else if (entry.isFile()) files.push({ abs, rel, stat: fs.statSync(abs) });
-  }
-  return files;
-}
-
 function mimeTypeFor(file) {
   return MIME_TYPES.get(path.extname(file).toLowerCase()) ??
     "application/octet-stream";
 }
 
-function clampInteger(value, fallback, min, max) {
-  const number = Number(value ?? fallback);
-  return Number.isFinite(number)
-    ? Math.min(max, Math.max(min, Math.floor(number)))
-    : fallback;
-}
-
-function presentArtifacts(args = {}) {
+function showImage(args = {}) {
+  if (!args.subpath) {
+    throw new Error("subpath is required and must name one rendered image");
+  }
   const target = safeJoin(args.subpath);
   if (!fs.existsSync(target)) {
-    throw new Error(`artifact path does not exist: ${args.subpath ?? "."}`);
+    throw new Error(`image does not exist: ${args.subpath}`);
   }
-
-  const maxFiles = clampInteger(args.max_files, 24, 1, 100);
-  const maxImages = clampInteger(args.max_images, 8, 1, 20);
-  const files = artifactFiles(target)
-    .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs || a.rel.localeCompare(b.rel));
-  const selected = files.slice(0, maxFiles);
-  const title = args.title?.trim() || "Scratchpad artifacts";
-  const content = [];
-  const summary = files.length
-    ? `${title}\n${target}\n\nShowing ${selected.length} of ${files.length} file${files.length === 1 ? "" : "s"}.`
-    : `${title}\n${target}\n\nNo artifacts have been created yet.`;
-  content.push({ type: "text", text: summary });
-
-  let imageCount = 0;
-  const skippedImages = [];
-  for (const file of selected) {
-    const mimeType = mimeTypeFor(file.abs);
-    content.push({
-      type: "resource_link",
-      uri: pathToFileURL(file.abs).href,
-      name: file.rel,
-      title: file.rel,
-      description: `${formatBytes(file.stat.size)} scratchpad artifact`,
-      mimeType,
-      size: file.stat.size,
-    });
-
-    if (!INLINE_IMAGE_TYPES.has(mimeType) || imageCount >= maxImages) continue;
-    if (file.stat.size > MAX_INLINE_IMAGE_BYTES) {
-      skippedImages.push(`${file.rel} (${formatBytes(file.stat.size)})`);
-      continue;
-    }
-    content.push({
-      type: "image",
-      data: fs.readFileSync(file.abs).toString("base64"),
-      mimeType,
-      annotations: {
-        audience: ["user"],
-        priority: 1,
-        lastModified: new Date(file.stat.mtimeMs).toISOString(),
-      },
-    });
-    imageCount += 1;
+  const stat = fs.statSync(target);
+  if (!stat.isFile()) {
+    throw new Error("subpath must name one image file, not a directory");
   }
-
-  if (skippedImages.length) {
-    content.push({
-      type: "text",
-      text: `Linked without inline preview because the image exceeds ${formatBytes(MAX_INLINE_IMAGE_BYTES)}:\n${skippedImages.join("\n")}`,
-    });
+  const mimeType = mimeTypeFor(target);
+  if (!INLINE_IMAGE_TYPES.has(mimeType)) {
+    throw new Error(`unsupported image type: ${mimeType}`);
   }
-  if (files.length > selected.length) {
-    content.push({
-      type: "text",
-      text: `${files.length - selected.length} additional artifact${files.length - selected.length === 1 ? " was" : "s were"} omitted. Narrow subpath or increase max_files to show them.`,
-    });
+  if (stat.size > MAX_INLINE_IMAGE_BYTES) {
+    throw new Error(
+      `image is ${formatBytes(stat.size)}; resize it below ${formatBytes(MAX_INLINE_IMAGE_BYTES)} before showing it`,
+    );
   }
-  return content;
+  return [{
+    type: "image",
+    data: fs.readFileSync(target).toString("base64"),
+    mimeType,
+    annotations: {
+      audience: ["user", "assistant"],
+      priority: 1,
+      lastModified: new Date(stat.mtimeMs).toISOString(),
+    },
+  }];
 }
 
 // --------------------------------------------------------------- instructions
 
-// This is the half that matters: the harness injects it into the system prompt,
-// so the agent reaches for the scratchpad without being asked every session.
+// Clients that honor MCP server instructions can inject this directly. Codex
+// currently relies on the scoped scratchpad skills when it omits this field.
 const INSTRUCTIONS = `A session-scoped scratchpad directory is available at:
 
 ${SCRATCHPAD}
@@ -295,21 +237,17 @@ The directory already exists — write to it directly, no mkdir needed. It is
 specific to this session, isolated from the user's project (nothing written
 there shows up in git status), and generally usable without permission prompts.
 
-Only use /tmp if the user explicitly requests it.
-
-VISUAL DESIGN: When appearance is part of correctness, use the scratchpad as a
-rendering studio. Create faithful UI variants, render them to images, inspect the
-pixels with the host image-viewing tool, and then call scratchpad_present on the
-rendered image or its containing directory. The presentation call is required:
-it returns the real generated images in the tool result so the user can see them.
-Never leave visual artifacts hidden behind a filesystem path, and never claim a
-visual result from source code or a successful build alone.`;
+VISUAL WORK ONLY: When visible appearance is part of correctness, render the
+real interface or a faithful probe to one image, then call show_image exactly
+once. Treat its returned pixels as both the agent's visual input and the user's
+inline view; draw visual conclusions only after that result. Do not call a
+Scratchpad tool on unrelated tasks merely because these instructions exist.`;
 
 const TOOLS = [
   {
     name: "scratchpad",
     description:
-      "Return the absolute path of this session's scratchpad directory. Pass `subpath` to get a path inside it. The directory is guaranteed to exist. This is path resolution only; after generating user-visible artifacts, call scratchpad_present to display them.",
+      "Return the absolute path of this session's scratchpad directory. Use only when a temporary path is actually needed and the path is not already in context. Pass `subpath` to get a path inside it.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -318,9 +256,9 @@ const TOOLS = [
     },
   },
   {
-    name: "scratchpad_present",
+    name: "show_image",
     description:
-      "Display generated scratchpad artifacts to the user. Returns actual inline image content for PNG, JPEG, GIF, and WebP files, plus links for every selected artifact. Call this after creating or updating visual output; a path or file listing is not presentation.",
+      "Read one rendered scratchpad PNG, JPEG, GIF, or WebP as image input for the agent and show the same pixels inline to the user. The result contains only image pixels: no file links and no Web Preview. Draw visual conclusions after the result. One successful call is final; never repeat it for an unchanged image.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -361,8 +299,8 @@ function callTool(name, args = {}) {
       });
       return [{ type: "text", text: target }];
     }
-    case "scratchpad_present": {
-      return presentArtifacts(args);
+    case "show_image": {
+      return showImage(args);
     }
     case "scratchpad_list": {
       const target = safeJoin(args.subpath);
@@ -407,19 +345,10 @@ function toolSchema(tool) {
           "Optional path relative to the scratchpad, e.g. data/out.json. Parent directories are created.",
         ),
       });
-    case "scratchpad_present":
+    case "show_image":
       return z.object({
-        subpath: z.string().optional().describe(
-          "Optional file or directory relative to the scratchpad. Prefer the exact final image or its dedicated output directory.",
-        ),
-        title: z.string().optional().describe(
-          "Short user-facing label for this set of artifacts.",
-        ),
-        max_files: z.number().optional().describe(
-          "Maximum linked files to return. Defaults to 24; maximum 100.",
-        ),
-        max_images: z.number().optional().describe(
-          "Maximum images to embed visibly. Defaults to 8; maximum 20.",
+        subpath: z.string().describe(
+          "Exact image file relative to the scratchpad, for example visual/buttons.png. Directories and non-image files are rejected.",
         ),
       });
     case "scratchpad_list":
@@ -452,10 +381,10 @@ function createServer({ era } = {}) {
     server.registerTool(
       tool.name,
       {
-        title: tool.name === "scratchpad_present"
-          ? "Show Scratchpad Artifacts"
+        title: tool.name === "show_image"
+          ? "Scratchpad"
           : tool.name === "scratchpad"
-            ? "Scratchpad"
+            ? "Scratchpad Path"
             : undefined,
         description: tool.description,
         inputSchema: toolSchema(tool),

@@ -10,7 +10,8 @@ an input to visual verification, never as proof of appearance.
 
 ## Workflow
 
-1. Resolve the session directory with `mcp__scratchpad__scratchpad`. Put probes,
+1. Use the session directory already present in context. If its exact path is
+   absent, resolve it once with `mcp__scratchpad__scratchpad`. Put probes,
    binaries, HTML, screenshots, and contact sheets under `visual/` there.
 2. Read the real component and its design context before mocking it. Preserve
    actual labels, dimensions, fonts, colors, states, and surrounding surface
@@ -25,12 +26,13 @@ an input to visual verification, never as proof of appearance.
      and run `scripts/render-swiftui.sh SOURCE.swift OUTPUT.png`.
    - iOS: render the real screen or a small host app in Simulator and capture it
      with the available simulator screenshot tooling.
-5. Inspect every rendered PNG with the host image-viewing tool. Do not infer the
-   result from successful compilation, source code, or screenshot existence.
-6. Call `mcp__scratchpad__scratchpad_present` with the exact final image or its
-   dedicated output directory. This must return the generated pixels as visible
-   image content in the Scratchpad tool result; a path or listing does not count.
-   Also show the same inspected image in the final response with an absolute-path
+5. Call `mcp__scratchpad__show_image` with the exact final image, never a
+   directory or HTML file. Its returned pixels are both the agent's visual input
+   and the user's inline result. Inspect those pixels before drawing any visual
+   conclusion; successful compilation, metadata, and screenshot existence do
+   not count. Call it exactly once for each unchanged final image. The result
+   contains no resource links and cannot open Web Preview.
+6. Also show the inspected image in the final response with an absolute-path
    Markdown image. Briefly name what changed and what to compare.
 7. Apply the selected treatment to product code only after visual evidence. Then
    render the real product again and inspect the after-state when feasible.
@@ -39,14 +41,15 @@ an input to visual verification, never as proof of appearance.
 
 Use these labels precisely:
 
-- `visually verified`: a rendered image was opened and inspected this turn.
+- `visually verified`: `show_image` returned a rendered image and its pixels were
+  inspected this turn.
 - `rendered, not inspected`: an image exists but could not be opened.
 - `code-only`: rendering was unavailable or failed.
 
 Never claim that a design looks correct from code or green tests alone. If the
 rendering path fails, report the exact failure and keep the design unverified.
 Never finish visual work with artifacts hidden inside the scratchpad. The user
-must receive the `scratchpad_present` tool result containing the actual images.
+must receive the single `show_image` result containing the actual pixels.
 
 ## User loop
 

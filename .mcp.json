@@ -7,6 +7,7 @@
       "default_tools_approval_mode": "writes",
       "env_vars": [
         "CODEX_HOME",
+        "CODEX_THREAD_ID",
         "CODEX_SESSION_ID",
         "CODEX_WORKSPACE_ROOT",
         "CODEX_PROJECT_DIR",

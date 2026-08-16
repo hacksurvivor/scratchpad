@@ -1,6 +1,6 @@
 {
   "name": "scratchpad",
-  "version": "0.1.4+codex.20260812020134",
+  "version": "0.2.0+codex.20260816020137",
   "description": "A session-scoped workspace for temporary files and visually verified UI variants.",
   "author": {
     "name": "Local"
@@ -21,7 +21,7 @@
     "displayName": "Scratchpad",
     "developerName": "Local",
     "shortDescription": "Temporary workspace with visual UI verification",
-    "longDescription": "Scratchpad gives the agent its own working directory for every session and adds a visual design loop for UI work. The agent can build disposable web or native variants, render them, inspect the resulting pixels, and publish the actual images inside the Scratchpad tool result before changing the product. The directory is isolated from the project and swept after seven days.",
+    "longDescription": "Scratchpad gives the agent its own working directory for temporary files and a conditional visual design loop for UI work. It stays quiet on ordinary tasks. During visual work, the agent can render and inspect real UI variants, then show one final image inline without opening Web Preview.",
     "category": "Productivity",
     "capabilities": [
       "Write",

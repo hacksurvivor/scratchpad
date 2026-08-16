@@ -20,9 +20,9 @@ design works.
 ```
 
 That copies the plugin into your local marketplace (`~/plugins/`) and runs
-`codex plugin add scratchpad@personal`. It also adds an idempotent marked block
-to `~/.codex/AGENTS.md` so Codex resolves the scratchpad automatically at the
-start of every task. Restart the Codex app afterward.
+`codex plugin add scratchpad@personal`. It also removes the unconditional
+`~/.codex/AGENTS.md` rule installed by versions before 0.2. Restart the Codex
+app afterward.
 
 To do it by hand:
 
@@ -49,16 +49,17 @@ The project slug is the absolute project path with every character outside
 `[A-Za-z0-9.]` replaced by a dash — the same transform Claude Code uses, so
 `/Users/example/Code/my-app` becomes `-Users-example-Code-my-app`.
 
-The session ID comes from `CODEX_SESSION_ID` when Codex exports it, and is
-otherwise a UUID generated when the server starts. Codex spawns one server per
-conversation, so that is one directory per session either way.
+The session ID comes from `CODEX_THREAD_ID` or `CODEX_SESSION_ID` when Codex
+exports one, and is otherwise a UUID generated when the server starts. Codex
+spawns one server per conversation, so that is one directory per session either
+way.
 
 ## Tools
 
 | Tool | What it does |
 | --- | --- |
-| `scratchpad` | Absolute path to the scratchpad. Pass `subpath` for a path inside it; parent directories are created. |
-| `scratchpad_present` | Returns generated images inline to the user and links the selected artifacts. This is the required final step for visual work. |
+| `scratchpad` | Absolute path to the scratchpad. It is called only when a temporary path is actually needed and not already known. |
+| `show_image` | Returns one exact PNG, JPEG, GIF, or WebP image inline. It emits no resource links and cannot open Web Preview. |
 | `scratchpad_list` | Recursive listing with file sizes. |
 | `scratchpad_clean` | `scope: "current"` empties this session. `scope: "old"` removes previous sessions. |
 
@@ -72,34 +73,40 @@ small render helpers. The required loop is:
 
 1. Write 2-4 faithful variants in the session scratchpad.
 2. Render them to a PNG.
-3. Open and inspect that PNG as image input.
-4. Call `scratchpad_present` so the Scratchpad result itself contains the real
-   generated image, then show the same PNG in the response.
+3. Call `show_image` once with that exact PNG. Its returned pixels are both the
+   agent's image input and the user's inline view, matching the role of Claude's
+   native `Read(image)` result without returning file links.
+4. Inspect that result before making any visual claim, then show the same PNG in
+   the response.
 5. Apply a treatment, then render the real product again when feasible.
 
 A successful build is not visual verification. If rendering or image inspection
 fails, the skill requires Codex to label the result `code-only` instead of
 guessing how it looks.
 
-## How the agent finds out
+## How activation works
 
-Two rails, because only one of them is guaranteed:
+Claude Code's native scratchpad is a host feature: it injects the path into the
+system prompt, then ordinary `Write`, `Bash`, and `Read(image)` calls perform the
+visual loop. An MCP plugin cannot make Codex classify file writes or render its
+built-in image reader exactly the same way.
 
-1. **MCP `instructions`** — returned by the negotiated MCP connection with the
-   resolved path already substituted in. Harnesses that honor the field inject
-   it into the system prompt, so the agent uses the scratchpad without being
-   told and knows to publish visual artifacts with `scratchpad_present`.
-2. **Global `AGENTS.md` bridge** — the installer adds a small marked block that
-   tells Codex to call `scratchpad` once at task start and requires rendered
-   evidence for visual work. This covers Codex
-   builds that initialize the MCP server but do not add its `instructions` text
-   to the model context.
-3. **Bundled skills** — `scratchpad` triggers for temporary files and
-   `visual-scratchpad` triggers for UI appearance, variants, and regressions.
+Scratchpad 0.2 therefore avoids pretending those host features are portable:
 
-Rail 1 gives Claude-style direct path injection. Rail 2 provides the same
-always-on behavior through one automatic, auto-approved tool lookup. Rail 3 is
-the final on-demand fallback.
+1. The MCP server advertises its session path in the standard `instructions`
+   field. Current Codex builds expose it with the MCP tool context, so the agent
+   can usually write directly without a resolver call. The same field contains
+   one conditional visual rule: render and call `show_image` only when visible
+   appearance is actually part of correctness.
+2. The narrowly described `scratchpad` skill resolves a path only when temporary
+   files are genuinely needed. Ordinary questions cause no Scratchpad call.
+3. The `visual-scratchpad` skill activates for appearance-sensitive work,
+   renders and inspects a real image, then returns that one image through
+   `show_image`.
+
+There is intentionally no global start-of-task rule and no artifact-directory
+presenter. That removes the two largest differences from Claude's behavior:
+unrelated triggering and unsolicited Web Preview.
 
 ## Configuration
 
@@ -108,6 +115,7 @@ the final on-demand fallback.
 | `SCRATCHPAD_ROOT` | `/tmp/codex-<uid>` | Where scratchpads live. |
 | `SCRATCHPAD_TTL_DAYS` | `7` | Age at which old sessions are swept. |
 | `SCRATCHPAD_PROJECT_DIR` | — | Override project detection. |
+| `CODEX_THREAD_ID` | — | Preferred session identity when supplied by Codex. |
 | `SCRATCHPAD_SESSION_ID` | — | Override the session ID. |
 
 Old session directories are swept on startup, since `/tmp` is not reliably
@@ -115,10 +123,10 @@ cleaned on macOS.
 
 ## Portability
 
-The server uses the official MCP TypeScript SDK 2.x over stdio — no network at
-runtime, no API keys, and no model calls. It supports the modern `2026-07-28`
-protocol snapshot while retaining the SDK's legacy 2025 compatibility for
-current hosts. Only `.codex-plugin/plugin.json`, `.mcp.json`, and `install.sh`
+The server uses the official MCP TypeScript server SDK 2.x over stdio — no
+network at runtime, no API keys, and no model calls. It negotiates the SDK's
+current `2025-11-25` protocol snapshot while retaining compatibility with older
+2025 clients. Only `.codex-plugin/plugin.json`, `.mcp.json`, and `install.sh`
 are Codex-specific; point another harness at `mcp/server.mjs` and it behaves
 identically. The SwiftUI renderer requires macOS and Xcode command-line tools.
 The HTML renderer requires Chrome, Chromium, or Edge, and the skill can use a

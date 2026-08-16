@@ -96,6 +96,8 @@ fi
 
 say "installing scratchpad@$MARKETPLACE_NAME"
 if codex plugin add "scratchpad@$MARKETPLACE_NAME"; then
+  # Versions before 0.2 installed an unconditional start-of-task rule. Remove
+  # only that marked block; the plugin now activates through scoped skills.
   mkdir -p "$CODEX_HOME_DIR"
   node - "$GLOBAL_AGENTS" <<'NODE'
 const fs = require("node:fs");
@@ -103,40 +105,23 @@ const fs = require("node:fs");
 const agentsPath = process.argv[2];
 const start = "<!-- scratchpad-plugin:start -->";
 const end = "<!-- scratchpad-plugin:end -->";
-const block = `${start}
-## Automatic scratchpad and visual verification
-
-At the start of every task, resolve the session scratchpad by calling
-\`mcp__scratchpad__scratchpad\` once unless its exact path is already in
-the current context. Use the returned directory for all temporary,
-intermediate, and throwaway files instead of /tmp or the project workspace.
-Do the lookup without announcing it unless it fails.
-
-When appearance is part of correctness, use the scratchpad as a visual design
-studio. Render faithful UI variants or the real product to an image, inspect the
-pixels with the available image-viewing tool, then call
-mcp__scratchpad__scratchpad_present on the final image or its directory so
-the real generation is visible inside the Scratchpad tool result. Also show the
-same image to the user in the response. A path or file listing is not visual
-evidence. Do not claim a visual result from source code or green tests alone.
-${end}`;
-
 let contents = fs.existsSync(agentsPath)
   ? fs.readFileSync(agentsPath, "utf8")
   : "";
 const from = contents.indexOf(start);
 const to = contents.indexOf(end);
 if (from !== -1 && to !== -1 && to >= from) {
-  contents = `${contents.slice(0, from)}${block}${contents.slice(to + end.length)}`;
-} else {
-  contents = `${contents.trimEnd()}${contents.trim() ? "\n\n" : ""}${block}\n`;
+  const before = contents.slice(0, from).trimEnd();
+  const after = contents.slice(to + end.length).trimStart();
+  contents = [before, after].filter(Boolean).join("\n\n");
+  if (contents) contents += "\n";
+  fs.writeFileSync(agentsPath, contents);
+  console.log(`removed legacy automatic scratchpad rule from ${agentsPath}`);
 }
-fs.writeFileSync(agentsPath, contents);
 NODE
-  say "enabled automatic scratchpad resolution in $GLOBAL_AGENTS"
   say
   say "Done. Restart the Codex app so it picks up the new plugin."
-  say "Then ask it: \"where is my scratchpad?\""
+  say "Visual tasks now show a rendered image inline without opening Web Preview."
 else
   die "codex plugin add failed — try 'codex plugin list' to see what Codex can see"
 fi

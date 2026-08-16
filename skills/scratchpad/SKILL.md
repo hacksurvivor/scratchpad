@@ -1,6 +1,6 @@
 ---
 name: scratchpad
-description: Use when writing any temporary, intermediate, or throwaway file — scratch scripts, test fixtures, downloaded data, analysis output, notes between steps, or anything you would otherwise put in /tmp or the working tree. Also use when asked where the scratchpad is, what is in it, or to clean it up.
+description: Use for non-visual temporary, intermediate, or throwaway files — scratch scripts, test fixtures, downloaded data, analysis output, notes between steps, or anything you would otherwise put in /tmp or the working tree. Also use when asked only where the scratchpad is, what is in it, or to clean it up. Do not use this general skill for UI, design, screenshots, rendered variants, image inspection, or visual regressions; those must use visual-scratchpad instead.
 metadata:
   trigger: Creating temp files, intermediate results, throwaway scripts, or scratch output
 ---
@@ -12,7 +12,9 @@ Use it for anything that is not a deliverable.
 
 ## Get the path
 
-Call `scratchpad`. It returns an absolute path that already exists:
+If the exact session path is already present in context, use it directly. If it
+is not, call `scratchpad` only when a temporary file is actually needed. It
+returns an absolute path that already exists:
 
 ```
 scratchpad()                    -> /tmp/codex-501/<project-slug>/<session>/scratchpad
@@ -47,8 +49,8 @@ Write there directly — do not `mkdir` first, and do not check whether it exist
 ## Housekeeping
 
 - `scratchpad_list` — show what is in the current scratchpad, with sizes
-- `scratchpad_present` — visibly return generated images and artifact links to
-  the user; call it after creating user-facing visual output
+- `show_image` — return one exact rendered image inline to the user without
+  file links or Web Preview
 - `scratchpad_clean(scope: "current")` — empty this session's directory
 - `scratchpad_clean(scope: "old")` — remove directories from previous sessions
 

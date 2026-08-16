@@ -21,6 +21,7 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 command -v codex >/dev/null 2>&1 || die "the codex CLI is not on your PATH"
 command -v node  >/dev/null 2>&1 || die "node is not on your PATH (the server needs it)"
 command -v npm   >/dev/null 2>&1 || die "npm is not on your PATH (needed to install the official MCP SDK)"
+command -v tar   >/dev/null 2>&1 || die "tar is not on your PATH (needed to package the plugin cleanly)"
 
 say "source      $SRC"
 say "marketplace $MARKETPLACE_NAME ($MARKETPLACE_ROOT)"
@@ -36,8 +37,18 @@ if [ -e "$DEST" ]; then
   esac
 fi
 
-mkdir -p "$MARKETPLACE_ROOT/plugins"
-cp -R "$SRC" "$DEST"
+mkdir -p "$DEST"
+(
+  cd "$SRC"
+  tar \
+    --exclude='./.git' \
+    --exclude='./node_modules' \
+    --exclude='./.DS_Store' \
+    -cf - .
+) | (
+  cd "$DEST"
+  tar -xf -
+)
 rm -f "$DEST/install.sh"
 say "copied plugin into the marketplace"
 
@@ -121,7 +132,8 @@ if (from !== -1 && to !== -1 && to >= from) {
 NODE
   say
   say "Done. Restart the Codex app so it picks up the new plugin."
-  say "Visual tasks now show a rendered image inline without opening Web Preview."
+  say "HTML artifacts now open as sandboxed interactive MCP Apps."
+  say "Visual tasks also render the same work to an inspected image."
 else
   die "codex plugin add failed — try 'codex plugin list' to see what Codex can see"
 fi

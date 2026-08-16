@@ -1,0 +1,8 @@
+interface:
+  display_name: "HTML Artifact"
+  short_description: "Open interactive plans, specs, dashboards, and micro-apps"
+  default_prompt: "Use $html-artifact to turn this work into a self-contained interactive HTML interface, open it for me, and visually verify it when appearance matters."
+
+policy:
+  allow_implicit_invocation: true
+

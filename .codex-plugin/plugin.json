@@ -1,7 +1,7 @@
 {
   "name": "scratchpad",
-  "version": "0.2.0+codex.20260816020137",
-  "description": "A session-scoped workspace for temporary files and visually verified UI variants.",
+  "version": "0.3.0+codex.20260816032633",
+  "description": "A session-scoped workspace for interactive HTML artifacts and visually verified UI variants.",
   "author": {
     "name": "Local"
   },
@@ -13,24 +13,26 @@
     "productivity",
     "filesystem",
     "design",
-    "visual-testing"
+    "visual-testing",
+    "html-artifacts"
   ],
   "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "interface": {
     "displayName": "Scratchpad",
     "developerName": "Local",
-    "shortDescription": "Temporary workspace with visual UI verification",
-    "longDescription": "Scratchpad gives the agent its own working directory for temporary files and a conditional visual design loop for UI work. It stays quiet on ordinary tasks. During visual work, the agent can render and inspect real UI variants, then show one final image inline without opening Web Preview.",
+    "shortDescription": "Interactive HTML artifacts with visual verification",
+    "longDescription": "Scratchpad gives the agent a session workspace, a sandboxed interactive HTML artifact surface for plans, specifications, dashboards, design systems, and micro-apps, plus a separate pixel-inspection channel for visually verifying the same work. It stays quiet on ordinary tasks.",
     "category": "Productivity",
     "capabilities": [
+      "Interactive",
       "Write",
       "Review"
     ],
     "defaultPrompt": [
-      "Where is my scratchpad?",
-      "Render three button variants in the visual scratchpad.",
-      "Compare this UI visually before changing it."
+      "Turn this plan into an interactive HTML artifact.",
+      "Open three UI variants and visually compare them.",
+      "Build a disposable decision workbench for this choice."
     ],
     "brandColor": "#111827"
   }

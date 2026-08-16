@@ -49,6 +49,8 @@ Write there directly — do not `mkdir` first, and do not check whether it exist
 ## Housekeeping
 
 - `scratchpad_list` — show what is in the current scratchpad, with sizes
+- `open_html` — open one self-contained HTML file as a sandboxed interactive
+  artifact for the user
 - `show_image` — return one exact rendered image inline to the user without
   file links or Web Preview
 - `scratchpad_clean(scope: "current")` — empty this session's directory

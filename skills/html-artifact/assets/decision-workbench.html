@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision workbench</title>
+<style>
+  :root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #171714; background: #f4f3ef; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; padding: 48px; }
+  main { max-width: 1040px; margin: auto; }
+  h1 { margin: 0; font-size: 38px; letter-spacing: -.045em; }
+  .lede { max-width: 650px; margin: 10px 0 28px; color: #6e6d67; line-height: 1.55; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  button { width: 100%; min-height: 230px; padding: 22px; border: 1px solid #d9d7d0; border-radius: 22px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+  button:hover { border-color: #9c998f; transform: translateY(-1px); }
+  button[aria-pressed="true"] { border: 2px solid #171714; box-shadow: 0 12px 36px rgb(23 23 20 / .12); }
+  .letter { display: inline-grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #eeece6; font-size: 12px; font-weight: 750; }
+  h2 { margin: 44px 0 8px; font-size: 21px; }
+  p { color: #6e6d67; line-height: 1.5; }
+  .signal { display: inline-block; margin-top: 22px; padding: 7px 10px; border-radius: 999px; background: #eeece6; font-size: 12px; font-weight: 650; }
+  @media (max-width: 760px) { body { padding: 24px; } .grid { grid-template-columns: 1fr; } button { min-height: 170px; } }
+</style>
+<main>
+  <h1>Choose a direction</h1>
+  <p class="lede">Replace these example options with the real tradeoffs, evidence, and excerpts the user needs to make a decision.</p>
+  <section class="grid" aria-label="Directions">
+    <button data-choice="A" aria-pressed="false"><span class="letter">A</span><h2>Conservative</h2><p>Minimal change, familiar behavior, lowest implementation risk.</p><span class="signal">Fastest</span></button>
+    <button data-choice="B" aria-pressed="false"><span class="letter">B</span><h2>Balanced</h2><p>Clear improvement while preserving the strongest existing conventions.</p><span class="signal">Recommended</span></button>
+    <button data-choice="C" aria-pressed="false"><span class="letter">C</span><h2>Expressive</h2><p>More distinctive and flexible, with a larger change surface.</p><span class="signal">Boldest</span></button>
+  </section>
+</main>
+<script>
+  const options = [...document.querySelectorAll("[data-choice]")];
+  for (const option of options) {
+    option.addEventListener("click", () => {
+      for (const item of options) item.setAttribute("aria-pressed", String(item === option));
+      window.parent.postMessage({
+        type: "scratchpad:update",
+        state: { choice: option.dataset.choice },
+      }, "*");
+    });
+  }
+</script>
+</html>

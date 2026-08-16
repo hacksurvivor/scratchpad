@@ -26,15 +26,18 @@ an input to visual verification, never as proof of appearance.
      and run `scripts/render-swiftui.sh SOURCE.swift OUTPUT.png`.
    - iOS: render the real screen or a small host app in Simulator and capture it
      with the available simulator screenshot tooling.
-5. Call `mcp__scratchpad__show_image` with the exact final image, never a
+5. For a web artifact, call `mcp__scratchpad__open_html` once with the exact
+   self-contained HTML so the user can inspect and interact with it. This is
+   the human-facing artifact channel. Native UI probes can skip this step.
+6. Call `mcp__scratchpad__show_image` with the exact final image, never a
    directory or HTML file. Its returned pixels are both the agent's visual input
    and the user's inline result. Inspect those pixels before drawing any visual
    conclusion; successful compilation, metadata, and screenshot existence do
    not count. Call it exactly once for each unchanged final image. The result
    contains no resource links and cannot open Web Preview.
-6. Also show the inspected image in the final response with an absolute-path
+7. Also show the inspected image in the final response with an absolute-path
    Markdown image. Briefly name what changed and what to compare.
-7. Apply the selected treatment to product code only after visual evidence. Then
+8. Apply the selected treatment to product code only after visual evidence. Then
    render the real product again and inspect the after-state when feasible.
 
 ## Evidence rule
@@ -48,8 +51,9 @@ Use these labels precisely:
 
 Never claim that a design looks correct from code or green tests alone. If the
 rendering path fails, report the exact failure and keep the design unverified.
-Never finish visual work with artifacts hidden inside the scratchpad. The user
-must receive the single `show_image` result containing the actual pixels.
+Never finish visual work with artifacts hidden inside the scratchpad. For web
+work, the user must receive the interactive `open_html` artifact and the single
+`show_image` result containing the inspected pixels.
 
 ## User loop
 

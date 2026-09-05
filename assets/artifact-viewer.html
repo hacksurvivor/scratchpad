@@ -1,246 +1,270 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Scratchpad HTML</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: transparent;
-      color: light-dark(#171717, #f5f5f5);
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: max(420px, 100vh); background: light-dark(#f4f3ef, #151515); }
-    .shell { min-height: max(420px, 100vh); display: grid; grid-template-rows: auto 1fr; }
-    .bar {
-      min-height: 52px;
-      padding: 9px 12px 9px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      border-bottom: 1px solid light-dark(#dedbd3, #383838);
-      background: light-dark(rgb(255 255 255 / .88), rgb(28 28 28 / .9));
-      backdrop-filter: blur(16px);
-    }
-    .identity { min-width: 0; display: flex; align-items: center; gap: 10px; }
-    .mark {
-      width: 28px;
-      height: 28px;
-      border-radius: 9px;
-      display: grid;
-      place-items: center;
-      background: #171717;
-      color: #fff;
-      font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    .copy { min-width: 0; }
-    .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
-    .status { margin-top: 2px; color: light-dark(#696761, #aaa); font-size: 11px; }
-    .actions { margin-left: auto; display: flex; gap: 7px; }
-    button {
-      min-height: 32px;
-      padding: 0 11px;
-      border: 1px solid light-dark(#d4d1c9, #464646);
-      border-radius: 9px;
-      background: light-dark(#fff, #292929);
-      color: inherit;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 650;
-      cursor: pointer;
-    }
-    button:hover { background: light-dark(#f0eee8, #343434); }
-    button:disabled { cursor: default; opacity: .45; }
-    button.primary { border-color: #171717; background: #171717; color: #fff; }
-    button.primary:hover { background: #2b2b2b; }
-    .stage { position: relative; min-height: 368px; }
-    iframe { width: 100%; height: 100%; min-height: 368px; border: 0; background: #fff; display: block; }
-    .empty {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 32px;
-      color: light-dark(#696761, #aaa);
-      text-align: center;
-      font-size: 13px;
-    }
-    [hidden] { display: none !important; }
-  </style>
-</head>
-<body>
-  <main class="shell">
-    <header class="bar">
-      <div class="identity">
-        <div class="mark" aria-hidden="true">HTML</div>
-        <div class="copy">
-          <div class="title" id="title">Scratchpad HTML</div>
-          <div class="status" id="status">Waiting for an artifact…</div>
-        </div>
-      </div>
-      <div class="actions">
-        <button id="send" class="primary" disabled>Send selection</button>
-        <button id="expand">Open full screen</button>
-      </div>
-    </header>
-    <section class="stage">
-      <iframe id="artifact" title="Interactive Scratchpad artifact" sandbox="allow-scripts"></iframe>
-      <div class="empty" id="empty">The interactive HTML artifact will appear here.</div>
-    </section>
-  </main>
-  <script>
-    (() => {
-      const frame = document.getElementById("artifact");
-      const empty = document.getElementById("empty");
-      const title = document.getElementById("title");
-      const status = document.getElementById("status");
-      const send = document.getElementById("send");
-      const expand = document.getElementById("expand");
-      const pending = new Map();
-      let nextRequestId = 1;
-      let currentArtifact = null;
-      let currentSelection = null;
-      let bridgeReady = null;
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scratchpad HTML</title><style>
+:root{color-scheme:light;--bg:#f4f4f2;--panel:#fff;--text:#252623;--muted:#73766e;--line:#e3e5df;--accent:#315e46;--tint:#eaf2e9;--canvas:#eeefeb;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}body.dark{color-scheme:dark;--bg:#191c19;--panel:#232723;--text:#edeFEa;--muted:#a1aa9e;--line:#3b4239;--accent:#b1d5b9;--tint:#324636;--canvas:#151815}button,select,textarea{font:inherit;color:inherit}button,select{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:7px 12px;cursor:pointer}button:hover{background:var(--tint)}button[aria-pressed=true]{background:var(--tint);color:var(--accent);border-color:transparent}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button:disabled{opacity:.5;cursor:default}h1,h2,h3,p{margin:0}header{height:68px;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--panel)}.logo{font-size:23px;line-height:1;color:var(--accent)}.brand{font-weight:650;font-size:15px;letter-spacing:-.3px}.divider{height:20px;width:1px;background:var(--line);margin:0 8px}.muted{color:var(--muted)}.pill{font-size:11px;border:1px solid var(--line);border-radius:5px;padding:3px 6px;white-space:nowrap}.right{margin-left:auto}.primary{background:var(--accent);color:var(--panel);border-color:var(--accent);font-weight:600}.primary:hover{filter:brightness(.92);background:var(--accent)}.toolbar{height:58px;display:flex;align-items:center;gap:16px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--panel)}.seg{display:flex;gap:3px}.seg button{border:0;background:transparent;padding:6px 11px}.seg button[aria-pressed=true]{background:var(--tint)}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100vh - 179px)}.canvas{background:var(--canvas);padding:28px;min-width:0;display:flex;flex-direction:column;gap:16px}.canvas-head{display:flex;align-items:center;gap:12px;font-size:12px}.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#608770;margin-right:6px}.boards{display:flex;gap:20px;align-items:flex-start;justify-content:center;width:100%;min-width:0;flex:1}.board-wrap{width:100%;min-width:0;transition:max-width .2s}.board-wrap.tablet{max-width:650px}.board-wrap.mobile{max-width:375px}.board-label{font-size:11px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between}.board{border:1px solid var(--line);border-radius:12px;background:var(--panel);min-height:490px;box-shadow:0 8px 20px #00000005;overflow:hidden}.sample-nav{height:57px;display:flex;align-items:center;gap:16px;padding:0 27px;border-bottom:1px solid var(--line)}.sample-name{font-size:16px;letter-spacing:-.6px;font-weight:650}.sample-content{padding:32px 30px}.eyebrow{text-transform:uppercase;letter-spacing:1.6px;font-size:10px;font-weight:650;color:var(--accent);margin-bottom:10px}.sample-content h1{font-size:31px;letter-spacing:-1.15px;line-height:1.2;margin-bottom:11px;font-weight:550}.sample-intro{max-width:360px;color:var(--muted);margin-bottom:24px}.project-row{border-top:1px solid var(--line);padding:15px 0;display:flex;gap:14px;align-items:center}.project-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:var(--tint);color:var(--accent);font-size:16px}.project-title{font-size:13px;font-weight:550}.project-sub{font-size:11px;color:var(--muted);margin-top:2px}.avatar{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--tint);font-size:10px}.sample-foot{padding:10px 0;font-size:11px;color:var(--muted)}.compare .board{min-height:510px}.compare .sample-content{padding:25px 20px}.compare .sample-nav{padding:0 20px}.compare .sample-content h1{font-size:25px}.compact .sample-content{padding-top:23px}.compact .project-row{padding:11px 0}.mobile .sample-nav{padding:0 20px}.mobile .sample-content{padding:26px 20px}.mobile .sample-content h1{font-size:27px}.mobile .nav-link{display:none}aside{background:var(--panel);border-left:1px solid var(--line);padding:23px 20px;display:flex;flex-direction:column;gap:22px}aside h2{font-size:14px;font-weight:650}aside h3{font-size:12px;font-weight:600;margin-bottom:9px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.review-target{padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:12px}.review-target small{display:block;color:var(--muted);margin-top:3px}.revision-line{padding-top:9px;margin-top:10px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}textarea{width:100%;height:107px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:11px;font-size:12px}label{display:block}.hint{font-size:11px;color:var(--muted);margin-top:7px}.note-meta{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:11px 0 6px}.decision-options{display:flex;flex-direction:column;gap:7px}.decision-options button{text-align:left;font-size:12px;display:flex;align-items:center;gap:8px}.decision-options button::before{content:'○';font-size:16px}.decision-options button[aria-pressed=true]::before{content:'●';font-size:14px}.send-block{margin-top:auto;border-top:1px solid var(--line);padding-top:17px}.send-block button{width:100%}.send-status{font-size:11px;color:var(--muted);margin-bottom:10px;min-height:32px}.footer{min-height:53px;padding:10px 24px;display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);background:var(--panel);font-size:11px}.footer select{font-size:11px;padding:4px 7px}.status-card{min-height:450px;display:grid;place-items:center;text-align:center;padding:30px}.status-card h2{font-size:18px;margin:12px 0 6px}.status-card p{color:var(--muted);max-width:300px;margin:0 auto 18px}.skeleton{width:220px;height:12px;background:var(--line);border-radius:5px;margin:12px auto}.badge{border-radius:5px;color:var(--accent);background:var(--tint);padding:3px 6px;font-size:10px}.hidden,[hidden]{display:none!important}.sample-button{font-size:11px;padding:5px 9px}.scope{font-size:11px;color:var(--muted);margin-top:16px;max-width:720px}.bottom-note{font-size:11px;color:var(--muted);display:flex;gap:10px;justify-content:center}.approved-note{background:var(--tint);padding:12px;border-radius:8px;color:var(--accent);font-size:12px}.fullcanvas aside{display:none}.fullcanvas .workspace{grid-template-columns:1fr}@media(max-width:850px){header{padding:0 16px}.toolbar{padding:0 14px;gap:8px}.toolbar .dimension{display:none}.workspace{grid-template-columns:minmax(0,1fr) 265px}.canvas{padding:20px 16px}.sample-content{padding:25px 20px}.sample-nav{padding:0 20px}.brand-sub{display:none}.toolbar .seg button{padding:6px 8px}.compare .boards{flex-direction:column}.compare .board-wrap{max-width:none}}@media(max-width:620px){header{height:auto;min-height:64px;flex-wrap:wrap;padding:12px 14px;gap:8px}.divider{margin:0 3px}.toolbar{height:auto;min-height:56px;flex-wrap:wrap;padding:10px 12px}.workspace{display:flex;flex-direction:column}.canvas{padding:20px 14px}aside{border-left:0;border-top:1px solid var(--line);padding:22px 18px}.footer{flex-wrap:wrap;padding:12px 14px}.footer .right{margin-left:0}.sample-content h1{font-size:27px}.sample-nav{gap:12px}.boards{width:100%}.board{min-height:450px}.scope{margin-top:6px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
+body{min-width:280px}.workspace{min-height:calc(100vh - 176px)}.canvas{overflow:hidden}.boards{display:grid;grid-template-columns:minmax(0,1fr)}.compare .boards{grid-template-columns:repeat(2,minmax(0,1fr))}.board-wrap{max-width:none!important;width:100%}.frame-scroll{overflow:auto;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 8px 20px #00000005;flex:1;min-height:490px}.board-wrap{display:flex;flex-direction:column}.frame-scroll iframe{width:100%;height:max(490px,calc(100vh - 325px));display:block;border:0;background:white}.boards[data-device="tablet"] iframe{width:650px}.boards[data-device="mobile"] iframe{width:375px}.boards[data-device="mobile"] .frame-scroll{max-width:377px;margin-left:auto;margin-right:auto;width:100%}.boards[data-device="tablet"] .frame-scroll{max-width:652px;margin-left:auto;margin-right:auto;width:100%}.status-card{border:1px solid var(--line);border-radius:12px;background:var(--panel);width:100%}.warning{border:1px solid var(--line);border-radius:8px;padding:11px 13px;background:var(--panel);font-size:12px}.selection{font:11px/1.5 ui-monospace,SFMono-Regular,monospace;max-height:130px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:8px 0 0}.review-target strong{overflow-wrap:anywhere}.review-target small{overflow-wrap:anywhere}.board-label{gap:10px}.title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}.status{white-space:nowrap}details{border-top:1px solid var(--line);padding-top:12px}summary{cursor:pointer;font-size:12px}.footer{min-height:50px}.footer code{font-size:10px}.hint.error{color:#b44d36}.send-status{overflow-wrap:anywhere}.top-actions{margin-left:auto;display:flex;gap:7px;align-items:center}.top-actions .pill{color:var(--muted)}.identity{display:flex;align-items:center;gap:10px}.toolbar .right{margin-left:auto}.compare-note{font-size:11px;color:var(--muted)}@media(max-width:850px){.compare .boards{grid-template-columns:minmax(0,1fr)}.frame-scroll iframe{height:560px}.status{white-space:normal}}@media(max-width:620px){.workspace{min-height:0}.identity .divider,.brand-sub{display:none}.top-actions{gap:5px}.top-actions button{padding:6px 8px;font-size:11px}.top-actions .pill{display:none}.canvas-head{flex-wrap:wrap}.canvas-head .status{margin-left:0}.toolbar .seg button{padding:6px 8px}.toolbar .divider{display:none}.frame-scroll iframe{height:530px}.workspace aside{min-height:580px}.boards[data-device="mobile"] .frame-scroll{max-width:100%}.footer{align-items:flex-start}.footer .right{margin-left:0}.title{max-width:100%}}
+</style></head><body>
+<header><div class="identity"><span class="logo" aria-hidden="true">▧</span><span class="brand">Scratchpad</span><span class="divider"></span><span class="brand-sub muted">A place to try things.</span></div><div class="top-actions"><span class="pill">Local preview</span><button id="theme" aria-label="Toggle dark appearance">◐</button><button id="focus" aria-pressed="false">Focus preview</button><button id="expand">Open full screen</button></div></header>
+<div class="toolbar"><div class="seg" aria-label="View"><button id="preview-mode" aria-pressed="true">Preview</button><button id="compare-mode" aria-pressed="false" disabled title="Supply a previous artifact to compare revisions">Compare</button></div><span class="divider"></span><div class="seg" aria-label="Viewport"><button data-device="desktop" aria-pressed="true">Desktop</button><button data-device="tablet" aria-pressed="false">Tablet</button><button data-device="mobile" aria-pressed="false">Mobile</button></div><span class="right muted dimension" id="dimensions">Fit to canvas</span><button id="reload" disabled>Reload preview</button></div>
+<main class="workspace"><section class="canvas" aria-label="Artifact preview"><div class="canvas-head"><strong class="title" id="title">Scratchpad HTML</strong><span class="pill" id="revision">No revision</span><span class="right muted status" id="status" role="status" aria-live="polite">Waiting for an artifact…</span></div><div class="warning" id="warning" hidden role="alert"></div><div class="boards" id="boards" data-device="desktop" hidden><div class="board-wrap" id="previous-wrap" hidden><div class="board-label"><span id="previous-label">Previous revision</span><span>Reference</span></div><div class="frame-scroll"><iframe id="previous" title="Previous Scratchpad revision" sandbox="allow-scripts"></iframe></div></div><div class="board-wrap"><div class="board-label"><span id="current-label">Current revision</span><span>Review target</span></div><div class="frame-scroll"><iframe id="artifact" title="Interactive Scratchpad artifact" sandbox="allow-scripts"></iframe></div></div></div><div class="status-card" id="empty"><div><h2>Your next idea starts here.</h2><p>Ask Codex to open an HTML preview. It will appear on this canvas.</p></div></div><div class="bottom-note"><span id="viewport-note">Device widths use CSS pixels.</span><span id="compare-note"></span></div></section>
+<aside aria-label="Review"><div><div class="section-title"><h2>Review</h2><span class="badge" id="draft-badge">Local draft</span></div><div class="review-target"><strong id="review-title">No artifact yet</strong><small id="review-revision">Open a preview to start a review.</small><div class="revision-line"><span>Revision fingerprint</span><span id="fingerprint">—</span></div></div></div><div><label for="notes"><h3>What should change?</h3></label><textarea id="notes" maxlength="2000" placeholder="Describe what works and what needs another pass…" disabled></textarea><p class="hint">Notes stay local until you send feedback.</p></div><div><h3>Your decision</h3><div class="decision-options"><button data-decision="feedback" aria-pressed="true" disabled>Feedback only</button><button data-decision="changes" aria-pressed="false" disabled>Request changes</button><button data-decision="approve" aria-pressed="false" disabled>Approve this revision</button></div><p class="hint">Approval applies to this revision and its stated scope.</p></div><details id="selection-details" hidden><summary>Artifact selection</summary><pre id="selection-preview" class="selection"></pre></details><div class="send-block"><p class="send-status" id="send-status" role="status" aria-live="polite">Open an artifact to start a review.</p><button class="primary" id="send" disabled>Send feedback</button><p class="hint">Sends your note, decision, and selection to Codex.</p></div></aside></main>
+<footer class="footer"><span><span class="dot"></span>Local, network-isolated preview</span><span class="right muted" id="footer-hint">Review drafts last while this viewer stays open.</span></footer>
+<script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const frame = $("artifact"), previousFrame = $("previous");
+      const status = $("status"), send = $("send"), notes = $("notes");
+      const pending = new Map(), drafts = new Map();
+      const MAX_SELECTION_BYTES = 20000, REQUEST_TIMEOUT_MS = 10000;
+      let nextRequestId = 1, currentArtifact = null, currentSelection = null;
+      let decision = "feedback", sending = false, sentPayload = null;
+      let bridgeReady = null, currentKey = null, view = "preview", device = "desktop";
+      let frameToken = "", loadTimer = null, frameLoaded = false, themeChosen = false;
+      let selectionError = false;
+      const boundedText = (value, max = 160) => String(value ?? "").slice(0, max);
       const rpcRequest = (method, params) => new Promise((resolve, reject) => {
         const id = nextRequestId++;
-        pending.set(id, { resolve, reject });
-        window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`${method} was not acknowledged`));
+        }, REQUEST_TIMEOUT_MS);
+        pending.set(id, { resolve, reject, timer });
+        try { window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*"); }
+        catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
       });
-
-      const rpcNotify = (method, params) => {
-        window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
-      };
-
-      const escapeText = (value) => String(value ?? "").slice(0, 20000);
-
-      const artifactFrom = (raw) => {
-        if (!raw || typeof raw !== "object") return null;
-        if (raw.artifact?.html) return raw.artifact;
-        if (raw._meta?.artifact?.html) return raw._meta.artifact;
-        if (raw.meta?.artifact?.html) return raw.meta.artifact;
-        if (raw.toolResponseMetadata?.artifact?.html) return raw.toolResponseMetadata.artifact;
-        if (raw.globals) return artifactFrom(raw.globals);
-        return null;
-      };
-
-      const protectedHtml = (html) => {
-        const csp = [
-          "default-src 'none'",
-          "style-src 'unsafe-inline'",
-          "script-src 'unsafe-inline'",
-          "img-src data: blob:",
-          "font-src data:",
-          "media-src data: blob:",
-          "connect-src 'none'",
-          "frame-src 'none'",
-          "object-src 'none'",
-          "form-action 'none'",
-          "base-uri 'none'",
-        ].join("; ");
-        const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}">`;
-        if (/<head(?:\s[^>]*)?>/i.test(html)) {
-          return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${meta}`);
+      const rpcNotify = (method, params) => window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+      const hostContext = (context) => {
+        if (!context) return;
+        if (!themeChosen && context.theme) document.body.classList.toggle("dark", context.theme === "dark");
+        if (Array.isArray(context.availableDisplayModes)) {
+          $("expand").hidden = !context.availableDisplayModes.includes("fullscreen");
         }
-        return `<!doctype html><html><head>${meta}</head><body>${html}</body></html>`;
+        $("expand").textContent = context.displayMode === "fullscreen" ? "Exit full screen" : "Open full screen";
+        $("expand").dataset.mode = context.displayMode === "fullscreen" ? "inline" : "fullscreen";
       };
-
+      const initialize = () => rpcRequest("ui/initialize", {
+        appInfo: { name: "scratchpad-html", version: "1.1.0" },
+        appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+        protocolVersion: "2026-01-26",
+      }).then((result) => {
+        hostContext(result?.hostContext);
+        rpcNotify("ui/notifications/initialized", {});
+        return result;
+      }).catch(() => null);
       const requestMode = async (mode) => {
         try {
           if (window.openai?.requestDisplayMode) {
-            await window.openai.requestDisplayMode({ mode });
+            const result = await window.openai.requestDisplayMode({ mode });
+            hostContext({ displayMode: result?.mode || mode });
             return;
           }
           const initialized = await bridgeReady;
-          const available = initialized?.hostContext?.availableDisplayModes;
+          if (!initialized) throw new Error("Display bridge is unavailable");
+          const available = initialized.hostContext?.availableDisplayModes;
           if (Array.isArray(available) && !available.includes(mode)) return;
-          await rpcRequest("ui/request-display-mode", { mode });
-        } catch {
-          // Inline rendering remains usable when the host declines expansion.
-        }
+          const result = await rpcRequest("ui/request-display-mode", { mode });
+          hostContext({ displayMode: result?.mode || mode });
+        } catch { $("footer-hint").textContent = "Display change unavailable. The inline preview remains usable."; }
       };
-
+      const artifactFrom = (raw, depth = 0) => {
+        if (!raw || typeof raw !== "object" || depth > 3) return null;
+        for (const item of [raw.artifact, raw._meta?.artifact, raw.meta?.artifact, raw.toolResponseMetadata?.artifact]) {
+          if (typeof item?.html === "string" && item.html.length) return item;
+        }
+        return raw.globals ? artifactFrom(raw.globals, depth + 1) : null;
+      };
+      const keyFor = (artifact) => JSON.stringify([artifact.subpath || "", artifact.sha256 || artifact.html, artifact.revision || ""]);
+      const revisionOf = (artifact) => boundedText(artifact?.revision || artifact?.sha256?.slice(0, 8) || "Current", 80);
+      const payload = () => ({
+        artifact: {
+          title: boundedText(currentArtifact?.title),
+          revision: revisionOf(currentArtifact),
+          subpath: boundedText(currentArtifact?.subpath, 1000),
+          sha256: currentArtifact?.sha256 || null,
+        },
+        decision,
+        notes: notes.value.trim(),
+        ...(currentSelection == null ? {} : { selection: JSON.parse(currentSelection) }),
+      });
+      const serializedPayload = () => JSON.stringify(payload());
+      const hasReview = () => !!notes.value.trim() || decision !== "feedback" || currentSelection != null;
+      const updateControls = (message) => {
+        const unchanged = currentArtifact && serializedPayload() === sentPayload;
+        send.disabled = !currentArtifact || sending || selectionError || !hasReview() || unchanged || (decision === "approve" && !frameLoaded);
+        send.textContent = sending ? "Sending…" : unchanged ? "Sent" : "Send feedback";
+        $("draft-badge").textContent = unchanged ? "Sent" : "Local draft";
+        if (message) $("send-status").textContent = message;
+        else if (!sending) $("send-status").textContent = !currentArtifact ? "Open an artifact to start a review." : selectionError ? "Artifact selection is invalid. Ask Codex to shorten its JSON summary to below 20 KB." : unchanged ? `Feedback acknowledged for ${revisionOf(currentArtifact)}.` : hasReview() ? `Ready to send for ${revisionOf(currentArtifact)}. Review your note and decision first.` : "Add a note, make an artifact selection, or choose a decision.";
+      };
+      const saveDraft = () => {
+        if (!currentKey) return;
+        drafts.set(currentKey, { notes: notes.value, decision, selection: currentSelection, sentPayload, selectionError });
+        while (drafts.size > 10) drafts.delete(drafts.keys().next().value);
+      };
+      const renderDecision = () => document.querySelectorAll("[data-decision]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.decision === decision));
+        button.disabled = !currentArtifact;
+      });
+      const renderSelection = () => {
+        $("selection-details").hidden = currentSelection == null;
+        $("selection-preview").textContent = currentSelection == null ? "" : JSON.stringify(JSON.parse(currentSelection), null, 2);
+      };
+      const warning = (message) => { $("warning").hidden = !message; $("warning").textContent = message || ""; };
+      const protectedHtml = (html, token) => {
+        const csp = ["default-src 'none'", "style-src 'unsafe-inline'", "script-src 'unsafe-inline'", "img-src data: blob:", "font-src data:", "media-src data: blob:", "connect-src 'none'", "frame-src 'none'", "object-src 'none'", "form-action 'none'", "base-uri 'none'"].join("; ");
+        // Parse first so malformed markup cannot put resources ahead of the CSP.
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        parsed.querySelectorAll('meta[http-equiv="refresh" i]').forEach((meta) => meta.remove());
+        const meta = parsed.createElement("meta");
+        meta.setAttribute("http-equiv", "Content-Security-Policy"); meta.setAttribute("content", csp);
+        const reporter = parsed.createElement("script");
+        reporter.textContent = `(() => { const token = ${JSON.stringify(token)}; const report = () => parent.postMessage({type:"scratchpad:preview-error",token},"*"); addEventListener("error",report); addEventListener("unhandledrejection",report); addEventListener("securitypolicyviolation",report); })();`;
+        parsed.head.prepend(reporter); parsed.head.prepend(meta);
+        return "<!doctype html>" + parsed.documentElement.outerHTML;
+      };
+      const loadFrame = () => {
+        if (!currentArtifact) return;
+        frameLoaded = false;
+        frameToken = `${Date.now()}-${Math.random()}`;
+        warning(null); status.textContent = "Loading preview…";
+        clearTimeout(loadTimer);
+        loadTimer = setTimeout(() => {
+          status.textContent = "Preview needs attention";
+          warning("The preview did not finish loading. Use Reload preview to try again. Your review draft is preserved.");
+          updateControls();
+        }, 8000);
+        frame.srcdoc = protectedHtml(currentArtifact.html, frameToken);
+        updateControls();
+      };
+      frame.addEventListener("load", () => {
+        if (!currentArtifact) return;
+        clearTimeout(loadTimer); frameLoaded = true;
+        status.textContent = $("warning").hidden ? "Ready" : "Preview needs attention";
+        updateControls();
+      });
+      const renderView = () => {
+        document.body.classList.toggle("compare", view === "compare");
+        $("previous-wrap").hidden = view !== "compare";
+        $("preview-mode").setAttribute("aria-pressed", String(view === "preview"));
+        $("compare-mode").setAttribute("aria-pressed", String(view === "compare"));
+        $("boards").dataset.device = device;
+        $("dimensions").textContent = device === "mobile" ? "375 px" : device === "tablet" ? "650 px" : "Fit to canvas";
+        $("viewport-note").textContent = device === "desktop" ? "Preview fits the canvas." : "Fixed CSS viewport. Scroll the canvas on smaller screens.";
+        $("compare-note").textContent = view === "compare" ? `Feedback targets ${revisionOf(currentArtifact)} on the right.` : "";
+      };
       const applyArtifact = (raw) => {
         const artifact = artifactFrom(raw);
-        if (!artifact) return false;
-        currentArtifact = artifact;
-        currentSelection = null;
-        send.disabled = true;
-        title.textContent = escapeText(artifact.title || "Scratchpad HTML");
-        status.textContent = "Interactive, local, and network-isolated";
-        frame.srcdoc = protectedHtml(String(artifact.html));
-        empty.hidden = true;
-        if ((artifact.displayMode || "fullscreen") === "fullscreen") {
-          requestMode("fullscreen");
+        if (!artifact) {
+          if (raw?.isError) warning("The artifact could not be opened. Ask Codex to fix the file and open it again.");
+          return false;
         }
+        const key = keyFor(artifact);
+        const changed = key !== currentKey;
+        if (changed) saveDraft();
+        const previous = typeof artifact.previous?.html === "string" ? artifact.previous : null;
+        const previousChanged = previous?.html !== currentArtifact?.previous?.html;
+        currentArtifact = artifact;
+        if (changed) {
+          currentKey = key;
+          const draft = drafts.get(key);
+          notes.value = draft?.notes || ""; decision = draft?.decision || "feedback";
+          currentSelection = draft?.selection ?? null; sentPayload = draft?.sentPayload ?? null;
+          selectionError = draft?.selectionError || false;
+        }
+        $("title").textContent = boundedText(artifact.title || "Scratchpad HTML");
+        $("revision").textContent = revisionOf(artifact);
+        $("review-title").textContent = boundedText(artifact.title || "HTML artifact");
+        $("review-revision").textContent = `${revisionOf(artifact)} · Current revision`;
+        $("current-label").textContent = `${revisionOf(artifact)} · Current revision`;
+        $("fingerprint").textContent = artifact.sha256?.slice(0, 8) || "Unavailable";
+        $("fingerprint").title = artifact.sha256 || "";
+        $("compare-mode").disabled = !previous;
+        $("compare-mode").title = previous ? "Compare current and previous revisions" : "Supply previous_subpath when opening an artifact to compare revisions";
+        if (previous) {
+          $("previous-label").textContent = `${revisionOf(previous)} · Previous revision`;
+          if (previousChanged) previousFrame.srcdoc = protectedHtml(previous.html, "previous");
+        } else { previousFrame.removeAttribute("srcdoc"); view = "preview"; }
+        notes.disabled = false; $("reload").disabled = false; $("empty").hidden = true; $("boards").hidden = false;
+        renderDecision(); renderSelection(); renderView();
+        if (changed) {
+          loadFrame();
+          if ((artifact.displayMode || "fullscreen") === "fullscreen") requestMode("fullscreen");
+        }
+        updateControls();
         return true;
       };
-
       window.addEventListener("message", (event) => {
         if (event.source === frame.contentWindow) {
-          if (event.data?.type !== "scratchpad:update") return;
-          currentSelection = event.data.state ?? event.data.value ?? null;
-          send.disabled = currentSelection == null;
-          status.textContent = currentSelection == null
-            ? "Interactive, local, and network-isolated"
-            : "Selection ready to send";
+          if (event.data?.type === "scratchpad:preview-error" && event.data.token === frameToken) {
+            warning("This artifact reported a script or blocked-resource error. Its appearance or interactions may be incomplete. Ask Codex to fix it, then reload.");
+            status.textContent = "Preview needs attention";
+            return;
+          }
+          if (event.data?.type !== "scratchpad:update" || !currentArtifact) return;
+          const state = event.data.state ?? event.data.value ?? null;
+          try {
+            const serialized = state == null ? null : JSON.stringify(state);
+            if (state != null && (typeof serialized !== "string" || new TextEncoder().encode(serialized).length > MAX_SELECTION_BYTES)) throw new Error("Invalid selection");
+            currentSelection = serialized; selectionError = false;
+          } catch { currentSelection = null; selectionError = true; }
+          renderSelection(); updateControls(); saveDraft();
           return;
         }
-
         if (event.source !== window.parent) return;
         const message = event.data;
-        if (!message || message.jsonrpc !== "2.0") {
-          applyArtifact(message);
-          return;
-        }
-        if (message.id != null) {
+        if (!message || message.jsonrpc !== "2.0") { applyArtifact(message); return; }
+        if (message.id != null && !message.method) {
           const request = pending.get(message.id);
           if (!request) return;
-          pending.delete(message.id);
-          if (message.error) request.reject(message.error);
-          else request.resolve(message.result);
-          return;
-        }
-        if (message.method === "ui/notifications/tool-result") {
-          applyArtifact(message.params);
-        }
-      }, { passive: true });
-
-      window.addEventListener("openai:set_globals", (event) => {
-        applyArtifact(event.detail?.globals);
+          pending.delete(message.id); clearTimeout(request.timer);
+          if (message.error) request.reject(message.error); else request.resolve(message.result);
+        } else if (message.method === "ui/notifications/tool-result") applyArtifact(message.params);
+        else if (message.method === "ui/notifications/host-context-changed") hostContext(message.params);
       });
-
-      expand.addEventListener("click", () => requestMode("fullscreen"));
-
+      window.addEventListener("openai:set_globals", (event) => { hostContext(event.detail?.globals); applyArtifact(event.detail?.globals); });
+      $("preview-mode").addEventListener("click", () => { view = "preview"; renderView(); });
+      $("compare-mode").addEventListener("click", () => { if (currentArtifact?.previous) { view = "compare"; renderView(); } });
+      document.querySelectorAll("button[data-device]").forEach((button) => button.addEventListener("click", () => {
+        device = button.dataset.device;
+        document.querySelectorAll("button[data-device]").forEach((item) => { if (item.tagName === "BUTTON") item.setAttribute("aria-pressed", String(item === button)); });
+        renderView();
+      }));
+      document.querySelectorAll("[data-decision]").forEach((button) => button.addEventListener("click", () => { decision = button.dataset.decision; renderDecision(); updateControls(); saveDraft(); }));
+      notes.addEventListener("input", () => { updateControls(); saveDraft(); });
+      $("reload").addEventListener("click", loadFrame);
+      $("theme").addEventListener("click", () => { themeChosen = true; document.body.classList.toggle("dark"); });
+      $("focus").addEventListener("click", () => {
+        const focused = document.body.classList.toggle("fullcanvas");
+        $("focus").setAttribute("aria-pressed", String(focused));
+        $("focus").textContent = focused ? "Show review" : "Focus preview";
+      });
+      $("expand").addEventListener("click", () => requestMode($("expand").dataset.mode || "fullscreen"));
       send.addEventListener("click", async () => {
-        if (currentSelection == null) return;
-        const selection = JSON.stringify(currentSelection, null, 2).slice(0, 20000);
-        const message = `Scratchpad selection from "${escapeText(currentArtifact?.title || "HTML artifact")}":\n${selection}`;
+        if (send.disabled || sending || !currentArtifact) return;
+        const review = serializedPayload(), key = currentKey;
+        sending = true; updateControls("Waiting for confirmation from Codex…");
         try {
-          await bridgeReady;
-          await rpcRequest("ui/message", {
+          let initialized = await bridgeReady;
+          // A new explicit send can reconnect, but never automatically resend a message.
+          if (!initialized) { bridgeReady = initialize(); initialized = await bridgeReady; }
+          if (!initialized) throw new Error("Host bridge is unavailable");
+          const result = await rpcRequest("ui/message", {
             role: "user",
-            content: [{ type: "text", text: message }],
+            content: [{ type: "text", text: `Scratchpad review for "${boundedText(JSON.parse(review).artifact.title)}":\n${review}` }],
           });
-          status.textContent = "Selection sent to Codex";
+          if (result?.isError) throw new Error("Host could not accept the review");
+          if (key === currentKey) { sentPayload = review; saveDraft(); }
+          else { const draft = drafts.get(key); if (draft) draft.sentPayload = review; }
+          sending = false;
+          updateControls(key === currentKey ? serializedPayload() === review ? `Feedback acknowledged for ${revisionOf(currentArtifact)}.` : "Previous feedback sent; your newer edits are ready to review." : "Feedback sent for the earlier revision. Current draft is unchanged.");
         } catch {
-          status.textContent = "Could not send selection; describe it in chat instead";
+          sending = false;
+          updateControls(key === currentKey ? "Delivery not confirmed. Your draft is preserved. Check the conversation before sending again." : "Delivery for the earlier revision was not confirmed. Current draft is unchanged.");
         }
       });
-
-      bridgeReady = rpcRequest("ui/initialize", {
-        appInfo: { name: "scratchpad-html", version: "1.0.0" },
-        appCapabilities: {
-          availableDisplayModes: ["inline", "fullscreen"],
-        },
-        protocolVersion: "2026-01-26",
-      }).then(() => rpcNotify("ui/notifications/initialized", {}));
-
+      bridgeReady = initialize();
       applyArtifact(window.openai?.toolResponseMetadata);
       applyArtifact(window.openai?.toolOutput);
     })();
-  </script>
-</body>
-</html>
+</script></body></html>

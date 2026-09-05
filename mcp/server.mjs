@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // scratchpad — a session-scoped temp directory for coding agents.
 //
-// Speaks MCP over stdio. No network, no model calls, no dependencies.
+// Speaks MCP over stdio using the MCP SDK. No network or model calls.
 // stdout carries JSON-RPC only; anything diagnostic goes to stderr.
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
@@ -20,7 +21,7 @@ const DEFAULT_TTL_DAYS = 7;
 // Codex launches the server with cwd set to the plugin directory, so the
 // project directory comes from the environment. PWD survives the spawn because
 // changing a child's working directory does not rewrite its environment.
-const PLUGIN_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const PLUGIN_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN_MANIFEST = JSON.parse(
   fs.readFileSync(path.join(PLUGIN_DIR, ".codex-plugin", "plugin.json"), "utf8"),
 );
@@ -134,6 +135,25 @@ function safeJoin(subpath) {
   if (resolved !== SCRATCHPAD && !resolved.startsWith(SCRATCHPAD + path.sep)) {
     throw new Error(`path escapes the scratchpad: ${subpath}`);
   }
+  // Resolve the nearest existing ancestor too: lexical containment alone lets
+  // a directory symlink redirect path creation or directory listing elsewhere.
+  const realRoot = fs.realpathSync(SCRATCHPAD);
+  let ancestor = resolved;
+  while (true) {
+    try {
+      fs.lstatSync(ancestor);
+      break;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) throw error;
+      ancestor = parent;
+    }
+  }
+  const realAncestor = fs.realpathSync(ancestor);
+  if (realAncestor !== realRoot && !realAncestor.startsWith(realRoot + path.sep)) {
+    throw new Error("path resolves outside the scratchpad");
+  }
   return resolved;
 }
 
@@ -157,6 +177,8 @@ function walk(dir, prefix = "") {
     if (entry.isDirectory()) {
       rows.push(`${rel}/`);
       rows.push(...walk(abs, rel));
+    } else if (entry.isSymbolicLink()) {
+      rows.push(`${rel}  (symbolic link)`);
     } else {
       try {
         rows.push(`${rel}  (${formatBytes(fs.statSync(abs).size)})`);
@@ -247,7 +269,8 @@ function htmlTitle(html, subpath) {
   return (fromDocument || path.basename(subpath, path.extname(subpath))).slice(0, 160);
 }
 
-function htmlArtifactResult(args = {}) {
+function readHtmlArtifact(subpath, revision, display = "fullscreen") {
+  const args = { subpath, revision, display };
   if (!args.subpath) {
     throw new Error("subpath is required and must name one self-contained HTML file");
   }
@@ -281,15 +304,28 @@ function htmlArtifactResult(args = {}) {
     interactive: true,
     displayMode: args.display ?? "fullscreen",
   };
+  artifact.revision = args.revision || artifact.sha256.slice(0, 8);
+  return { ...artifact, html };
+}
+
+function htmlArtifactResult(args = {}) {
+  const current = readHtmlArtifact(args.subpath, args.revision, args.display);
+  const previous = args.previous_subpath
+    ? readHtmlArtifact(args.previous_subpath, args.previous_revision, args.display)
+    : undefined;
+  const { html, ...artifact } = current;
+  const previousReceipt = previous
+    ? (({ html, ...receipt }) => receipt)(previous)
+    : undefined;
   return {
     content: [{
       type: "text",
-      text: `Opened interactive Scratchpad HTML: ${artifact.title}. The user can inspect it now.`,
+      text: `Opened interactive Scratchpad HTML: ${artifact.title} (${artifact.revision}).${previous ? " Two revisions are available to compare." : ""} The user can inspect it now.`,
     }],
-    structuredContent: { artifact },
+    structuredContent: { artifact, ...(previousReceipt ? { previous: previousReceipt } : {}) },
     _meta: {
       ...htmlToolMeta(),
-      artifact: { ...artifact, html },
+      artifact: { ...current, ...(previous ? { previous } : {}) },
     },
     isError: false,
   };
@@ -359,7 +395,7 @@ unrelated tasks merely because these instructions exist.
 SELECTION BRIDGE: If interactive HTML contains a meaningful choice or editable
 state, post a bounded summary after each change with
 window.parent.postMessage({type:"scratchpad:update",state:{choice:"B"}}, "*").
-The viewer keeps it local until the user explicitly presses Send selection.`;
+The viewer keeps it local until the user explicitly presses Send feedback.`;
 
 const TOOLS = [
   {
@@ -376,7 +412,7 @@ const TOOLS = [
   {
     name: "open_html",
     description:
-      "Use this when the user should inspect, compare, or interact with a generated plan, specification, dashboard, design system, micro-app, or web UI as HTML. Opens one self-contained scratchpad .html file in a sandboxed MCP App. For meaningful choices, post {type:'scratchpad:update',state:{...}} to window.parent after changes so the user can explicitly send the selection. This is the human-facing artifact channel; when appearance must be judged, also render the same HTML and call show_image. Call once per material revision.",
+      "Use this when the user should inspect, compare, or interact with a generated plan, specification, dashboard, design system, micro-app, or web UI as HTML. Opens a self-contained scratchpad .html file in a sandboxed MCP App with device previews and revision-bound review notes. Supply previous_subpath to compare two revisions. For meaningful choices, post {type:'scratchpad:update',state:{...}} to window.parent after changes so the user can explicitly send the selection. This is the human-facing artifact channel; when appearance must be judged, also render the same HTML and call show_image. Call once per material revision.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -436,6 +472,9 @@ function callTool(name, args = {}) {
     }
     case "scratchpad_list": {
       const target = safeJoin(args.subpath);
+      if (!fs.statSync(target).isDirectory()) {
+        throw new Error("subpath must name a directory");
+      }
       const rows = walk(target);
       return {
         content: [{
@@ -496,6 +535,15 @@ function toolSchema(tool) {
       return z.object({
         subpath: z.string().describe(
           "Exact self-contained .html file relative to the scratchpad, for example artifacts/plan.html.",
+        ),
+        revision: z.string().trim().min(1).max(80).optional().describe(
+          "Human-readable revision label, for example R2. Defaults to the content hash prefix.",
+        ),
+        previous_subpath: z.string().optional().describe(
+          "Optional previous self-contained HTML file in this scratchpad for side-by-side comparison.",
+        ),
+        previous_revision: z.string().trim().min(1).max(80).optional().describe(
+          "Optional label for the previous revision, for example R1.",
         ),
         display: z.enum(["inline", "fullscreen"]).optional().describe(
           "Preferred presentation size. Defaults to fullscreen.",
@@ -565,12 +613,18 @@ function createServer({ era } = {}) {
           ? z.object({
               artifact: z.object({
                 title: z.string(),
+                revision: z.string(),
                 subpath: z.string(),
                 bytes: z.number(),
                 sha256: z.string(),
                 interactive: z.boolean(),
                 displayMode: z.enum(["inline", "fullscreen"]),
               }),
+              previous: z.object({
+                title: z.string(), revision: z.string(), subpath: z.string(),
+                bytes: z.number(), sha256: z.string(), interactive: z.boolean(),
+                displayMode: z.enum(["inline", "fullscreen"]),
+              }).optional(),
             })
           : undefined,
         annotations: tool.annotations,

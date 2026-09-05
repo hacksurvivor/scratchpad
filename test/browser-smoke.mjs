@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
-import os from "node:os";
 import path from "node:path";
 
 const input = process.argv[2];
@@ -29,7 +28,7 @@ const port = await new Promise((resolve, reject) => {
     server.close(() => resolve(address.port));
   });
 });
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "scratchpad-chrome-"));
+const profile = fs.mkdtempSync(path.join(path.dirname(input), "scratchpad-chrome-"));
 const child = spawn(chrome, [
   "--headless=new",
   "--disable-gpu",
@@ -81,38 +80,65 @@ try {
     socket.send(JSON.stringify({ id, method, params }));
   });
 
-  await delay(500);
-  await cdp("Input.dispatchMouseEvent", {
-    type: "mousePressed",
-    x: 720,
-    y: 350,
-    button: "left",
-    clickCount: 1,
-  });
-  await cdp("Input.dispatchMouseEvent", {
-    type: "mouseReleased",
-    x: 720,
-    y: 350,
-    button: "left",
-    clickCount: 1,
-  });
-  await delay(250);
+  const evaluate = async (expression) => {
+    const result = await cdp("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+    return result.result.value;
+  };
+  const until = async (expression) => {
+    for (let i = 0; i < 100; i++) { if (await evaluate(expression)) return; await delay(50); }
+    throw new Error(`Timed out: ${expression}`);
+  };
+  await until('document.getElementById("status")?.textContent === "Ready"');
+  assert.equal(await evaluate('document.getElementById("title").textContent'), 'Decision workbench');
+  // Click the first card in the rendered, sandboxed fixture.
+  await cdp("Input.dispatchMouseEvent", { type: "mousePressed", x: 200, y: 500, button: "left", clickCount: 1 });
+  await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", x: 200, y: 500, button: "left", clickCount: 1 });
+  await until(`document.getElementById("selection-preview").textContent.includes('"A"')`);
+  await evaluate(`document.getElementById('notes').value='Browser fixture review';document.getElementById('notes').dispatchEvent(new Event('input'));`);
+  assert.equal(await evaluate('document.getElementById("send").disabled'), false);
+  const before = await evaluate('document.getElementById("artifact").srcdoc');
+  await evaluate(`window.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{_meta:{artifact:window.__fixtureArtifact}}},'*')`);
+  await delay(100);
+  assert.equal(await evaluate('document.getElementById("notes").value'), 'Browser fixture review');
+  assert.equal(await evaluate('document.getElementById("artifact").srcdoc'), before);
+  await evaluate('document.querySelector("button[data-device=mobile]").click()');
+  assert.equal(await evaluate('document.getElementById("artifact").getBoundingClientRect().width'),375);
+  await evaluate('document.getElementById("compare-mode").click()');
+  assert.equal(await evaluate('document.getElementById("previous-wrap").hidden'),false);
+  assert.equal(await evaluate('document.getElementById("previous").getAttribute("sandbox")'),'allow-scripts');
+  await evaluate('document.getElementById("send").click()');
+  await until('document.getElementById("send").textContent === "Sent"');
+  const receipt = await evaluate('window.__fixtureMessages.filter(x=>x.method==="ui/message")');
+  assert.equal(receipt.length,1);
+  assert.match(receipt[0].params.content[0].text,/Browser fixture review/);
+  assert.match(receipt[0].params.content[0].text, /"sha256":"[a-f0-9]{64}"/);
+  await evaluate(`window.__fixtureSendFailure=true;document.getElementById('notes').value='Retry fixture';document.getElementById('notes').dispatchEvent(new Event('input'));document.getElementById('send').click()`);
+  await until('document.getElementById("send-status").textContent.includes("Delivery not confirmed")');
+  assert.equal(await evaluate('document.getElementById("notes").value'),'Retry fixture');
+  assert.equal(await evaluate('document.getElementById("send").disabled'),false);
+  await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+  await evaluate('document.getElementById("preview-mode").click()');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= 390'),true);
+  await evaluate('document.getElementById("theme").click()');
+  assert.equal(await evaluate('document.body.classList.contains("dark")'),true);
+  await evaluate('document.getElementById("focus").click()');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("aside")).display'),'none');
+  await evaluate('document.getElementById("focus").click()');
+  await evaluate('document.getElementById("theme").click()');
+  if (process.argv[3]) {
+    const metrics=await cdp('Page.getLayoutMetrics');
+    const shot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:0,width:390,height:Math.ceil(metrics.cssContentSize.height),scale:1}});
+    fs.writeFileSync(path.resolve(process.argv[3]),Buffer.from(shot.data,'base64'));
+  }
+  process.stdout.write(JSON.stringify({result:'passed',checks:['artifact render','sandboxed artifact selection','draft preservation','375px viewport','two-revision comparison','acknowledged send','failed send preserves draft','mobile no page overflow','dark appearance','focus mode'],host:'disposable fixture, no live messages'})+'\n');
 
-  const evaluated = await cdp("Runtime.evaluate", {
-    expression: `({
-      title: document.querySelector("#title")?.textContent,
-      status: document.querySelector("#status")?.textContent,
-      sendDisabled: document.querySelector("#send")?.disabled
-    })`,
-    returnByValue: true,
-  });
-  const state = evaluated.result.value;
-  assert.equal(state.title, "Decision workbench");
-  assert.equal(state.status, "Selection ready to send");
-  assert.equal(state.sendDisabled, false);
-  process.stdout.write(`${JSON.stringify(state)}\n`);
 } finally {
   socket?.close();
   child.kill("SIGTERM");
-  fs.rmSync(profile, { recursive: true, force: true });
+  if (child.exitCode == null) await new Promise((resolve) => {
+    child.once("exit", resolve);
+    setTimeout(() => { child.kill("SIGKILL"); resolve(); }, 2000).unref();
+  });
+  fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

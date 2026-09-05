@@ -27,6 +27,29 @@ inspect, compare, edit, or choose.
 6. Keep the artifact disposable. Product code changes happen only after the
    user selects a direction or the task already authorizes direct implementation.
 
+## Revision review
+
+Use meaningful revision labels. To compare two real revisions, supply the
+previous HTML file explicitly:
+
+```js
+open_html({
+  subpath: "artifacts/r2.html", revision: "R2",
+  previous_subpath: "artifacts/r1.html", previous_revision: "R1"
+});
+```
+
+The viewer offers device widths, side-by-side comparison, notes, and explicit
+feedback / request changes / approve controls. Feedback names the current
+revision, path, and SHA-256. An approval of a previous hash does not authorize a
+materially different design. Follow the user's design-approval workflow. Before
+implementing a durable product design, preserve the approved HTML and scope in
+the project because scratchpad files expire.
+
+Do not describe a review as sent until the host acknowledges it. A timeout is
+uncertain delivery: ask the user to check chat before manually sending again.
+Drafts last only while this viewer is open; up to ten revision drafts are retained.
+
 ## Selection bridge
 
 When the artifact contains meaningful choices or editable state, send a bounded
@@ -40,8 +63,8 @@ window.parent.postMessage({
 ```
 
 The Scratchpad viewer keeps this state local until the user explicitly presses
-**Send selection**. Never place secrets, credentials, personal data, hidden
-reasoning, or entire source files in the selection payload. Keep it below 20 KB.
+**Send feedback**. Never place secrets, credentials, personal data, hidden
+reasoning, or entire source files in the selection payload. Keep its serialized JSON below 20,000 UTF-8 bytes. Invalid or oversized values are rejected rather than truncated.
 
 ## Quality bar
 

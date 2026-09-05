@@ -1,11 +1,10 @@
 {
   "name": "codex-scratchpad-plugin",
-  "version": "0.3.0",
-  "private": true,
+  "version": "0.4.0",
   "type": "module",
-  "description": "Runtime dependencies for the Scratchpad interactive artifact MCP server.",
+  "description": "Session-scoped MCP scratchpad with interactive HTML previews, revision comparison, and design review.",
   "scripts": {
-    "test": "node --test test/server.test.mjs"
+    "test": "node --test test/server.test.mjs test/viewer.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -13,5 +12,36 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
     "zod": "4.4.3"
-  }
+  },
+  "license": "MIT",
+  "author": "hacksurvivor",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hacksurvivor/scratchpad.git"
+  },
+  "homepage": "https://github.com/hacksurvivor/scratchpad#readme",
+  "bugs": {
+    "url": "https://github.com/hacksurvivor/scratchpad/issues"
+  },
+  "bin": {
+    "scratchpad-mcp": "mcp/server.mjs"
+  },
+  "files": [
+    "mcp/",
+    "assets/",
+    "skills/",
+    ".codex-plugin/plugin.json",
+    ".mcp.json",
+    "install.sh"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "codex",
+    "scratchpad",
+    "html",
+    "design-review"
+  ]
 }

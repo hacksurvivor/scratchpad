@@ -21,29 +21,48 @@ the design works.
 
 ## Install
 
+### MCP server through npm
+
+Requires Node.js 20 or later. Configure your MCP client to launch:
+
 ```sh
+npx --yes --package=codex-scratchpad-plugin@0.4.0 scratchpad-mcp
+```
+
+Example stdio MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "scratchpad": {
+      "command": "npx",
+      "args": ["--yes", "--package=codex-scratchpad-plugin@0.4.0", "scratchpad-mcp"]
+    }
+  }
+}
+```
+
+MCP Apps-compatible clients can display the interactive viewer. Other MCP
+clients can use the filesystem and image tools. The npm command starts the
+server; it does not automatically install Codex skills or marketplace entries.
+
+### Full Codex plugin from GitHub
+
+```sh
+git clone https://github.com/hacksurvivor/scratchpad.git
+cd scratchpad
+git checkout v0.4.0
 ./install.sh
 ```
 
-That copies the plugin into your local marketplace (`~/plugins/`) and runs
-`codex plugin add scratchpad@personal`. It also removes the unconditional
-`~/.codex/AGENTS.md` rule installed by versions before 0.2. Restart the Codex
-app afterward.
+The installer copies the plugin into `~/plugins/scratchpad`, installs runtime
+dependencies, indexes it in the personal marketplace, and runs
+`codex plugin add scratchpad@personal`. It asks before replacing an existing copy.
 
-To do it by hand:
-
-```sh
-cp -R . ~/plugins/scratchpad
-codex plugin add scratchpad@personal
-```
-
-If you keep your marketplace somewhere else:
-
-```sh
-SCRATCHPAD_MARKETPLACE_ROOT=/path/to/root \
-SCRATCHPAD_MARKETPLACE_NAME=mine \
-./install.sh
-```
+For a local development update, use Codex's plugin-creator cachebuster helper
+before reinstalling from the personal marketplace. Start a new Codex task to
+load the updated MCP server and skills; restart Codex if a new task still uses
+the old version. Do not edit files in the installed cache.
 
 ## The path
 
@@ -86,11 +105,66 @@ to understand or steer as an interface instead of long Markdown:
    iframe. It injects a restrictive content security policy that blocks network
    access, external resources, forms, frames, and objects.
 4. Interactive artifacts can post bounded selection state to the viewer. That
-   state remains local until the user presses **Send selection**.
+   state remains local until the user presses **Send feedback**.
 
 The HTML itself is delivered to the widget through tool-result `_meta`, which
 keeps it out of the model-visible transcript. The model receives only a small
 title, path, size, and SHA-256 receipt.
+
+## Review workspace
+
+`open_html` remains compatible with existing `subpath` and `display` calls. It
+also accepts `revision`, `previous_subpath`, and `previous_revision`:
+
+```json
+{
+  "subpath": "artifacts/r2.html",
+  "revision": "R2",
+  "previous_subpath": "artifacts/r1.html",
+  "previous_revision": "R1"
+}
+```
+
+- Desktop fits the available canvas; Tablet and Mobile use 650px and 375px CSS
+  iframe viewports. Narrow canvases scroll rather than changing the target width.
+- Compare displays the explicitly supplied previous artifact beside the current
+  revision. Review feedback always targets the current revision.
+- The review panel accepts notes, a feedback/change-request/approval decision,
+  and the artifact's existing selection bridge. It sends only on **Send feedback**.
+- Every review includes title, revision, path, and the full SHA-256. The viewer
+  marks it sent only after the host acknowledges `ui/message` without an error.
+  Unacknowledged delivery is reported as uncertain; no automatic resend occurs.
+- Duplicate artifact notifications do not reload the current iframe. Up to ten
+  revision drafts are retained in memory while this viewer remains open. Closing
+  the viewer or restarting Codex does not preserve those drafts.
+- A selection must be valid JSON and at most 20,000 UTF-8 bytes. Oversized or cyclic
+  values are rejected, never truncated. Notes are limited to 2,000 characters.
+- Reload preserves the review draft. Script failures and blocked resources are
+  reported beside the preview. The iframe remains network-isolated.
+- Dark appearance applies to the viewer. Each HTML artifact controls its own
+  appearance. Focus preview hides the review panel; full screen is host-dependent.
+
+The approved design and scope are retained in `docs/design/approved-r1.html` and
+`docs/design/approved-r1.md`.
+
+## Validation
+
+```sh
+npm test
+node test/render-widget-harness.mjs assets/artifact-viewer.html \
+  skills/html-artifact/assets/decision-workbench.html /absolute/work/viewer.html \
+  skills/visual-scratchpad/assets/web-contact-sheet.html
+node test/browser-smoke.mjs /absolute/work/viewer.html /absolute/work/mobile.png
+```
+
+The unit suite uses disposable local filesystem fixtures and isolated viewer
+message tests. Browser smoke tests require Node 22+ and Chrome/Chromium/Edge;
+they use a disposable profile and a simulated host, with no live chat messages.
+A simulated acknowledgement is not proof of delivery through the installed Codex
+host. Verify that integration in a fresh task after reinstalling.
+
+The HTML renderer uses an isolated browser profile, a bounded 20-second capture,
+and explicit process cleanup. It writes an output only after a complete PNG exists.
 
 ## Visual design loop
 

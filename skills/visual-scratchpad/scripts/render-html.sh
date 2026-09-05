@@ -36,14 +36,4 @@ done
 
 [ -x "$chrome" ] || { printf 'error: Chrome/Chromium not found; use the browser screenshot tool instead\n' >&2; exit 1; }
 mkdir -p "$(dirname "$output_file")"
-"$chrome" \
-  --headless=new \
-  --disable-gpu \
-  --hide-scrollbars \
-  --allow-file-access-from-files \
-  --window-size="$width,$height" \
-  --screenshot="$output_file" \
-  "file://$input_file" >/dev/null 2>&1
-
-[ -s "$output_file" ] || { printf 'error: renderer produced no image: %s\n' "$output_file" >&2; exit 1; }
-printf '%s\n' "$output_file"
+node "$(dirname "$0")/render-html.mjs" "$chrome" "$input_file" "$output_file" "$width" "$height"

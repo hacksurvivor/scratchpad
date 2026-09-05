@@ -28,6 +28,8 @@ say "marketplace $MARKETPLACE_NAME ($MARKETPLACE_ROOT)"
 say "destination $DEST"
 say
 
+[ "$SRC" != "$DEST" ] || die "run the installer from a separate checkout, not the installed destination"
+
 if [ -e "$DEST" ]; then
   printf 'A plugin already exists at %s. Overwrite? [y/N] ' "$DEST"
   read -r reply
@@ -55,7 +57,11 @@ say "copied plugin into the marketplace"
 say "installing official MCP SDK dependencies"
 (
   cd "$DEST"
-  npm ci --omit=dev --ignore-scripts
+  if [ -f package-lock.json ]; then
+    npm ci --omit=dev --ignore-scripts
+  else
+    npm install --omit=dev --ignore-scripts
+  fi
 )
 
 # Local marketplaces are manifest-indexed; copying a plugin directory alone is
@@ -131,7 +137,7 @@ if (from !== -1 && to !== -1 && to >= from) {
 }
 NODE
   say
-  say "Done. Restart the Codex app so it picks up the new plugin."
+  say "Done. Open a new Codex task to load the updated plugin; restart Codex if it still shows the old version."
   say "HTML artifacts now open as sandboxed interactive MCP Apps."
   say "Visual tasks also render the same work to an inspected image."
 else

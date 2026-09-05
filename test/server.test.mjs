@@ -4,9 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER = path.join(REPO, "mcp", "server.mjs");
 const TEST_PROJECT = path.dirname(REPO);
 const base = process.env.SCRATCHPAD_TEST_ROOT || os.tmpdir();
@@ -106,7 +107,7 @@ test("advertises the interactive HTML tool and MCP App resource", async () => {
   const read = await request("resources/read", { uri: resource.uri });
   assert.equal(read.contents.length, 1);
   assert.equal(read.contents[0].mimeType, "text/html;profile=mcp-app");
-  assert.match(read.contents[0].text, /Send selection/);
+  assert.match(read.contents[0].text, /Send feedback/);
   assert.match(read.contents[0].text, /sandbox="allow-scripts"/);
   assert.match(read.contents[0].text, /ui\/request-display-mode/);
   assert.match(read.contents[0].text, /await rpcRequest\("ui\/message"/);
@@ -152,4 +153,73 @@ test("rejects non-HTML files and symlink escapes", async () => {
   });
   assert.equal(escapedImage.isError, true);
   assert.match(escapedImage.content[0].text, /resolves outside the scratchpad/);
+});
+
+
+test("path resolver and listing reject directory symlink escapes", async () => {
+  await initialized;
+  const outsideDir = path.join(testRoot, "outside-directory");
+  fs.mkdirSync(outsideDir);
+  fs.writeFileSync(path.join(outsideDir, "private.txt"), "fixture");
+  fs.symlinkSync(outsideDir, path.join(scratchpad, "outside-link"));
+  for (const [name, subpath] of [
+    ["scratchpad", "outside-link/new-folder/file.txt"],
+    ["scratchpad_list", "outside-link"],
+  ]) {
+    const result = await request("tools/call", { name, arguments: { subpath } });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /resolves outside the scratchpad/);
+  }
+  assert.equal(fs.existsSync(path.join(outsideDir, "new-folder")), false);
+  const rootListing = await request("tools/call", { name: "scratchpad_list", arguments: {} });
+  assert.match(rootListing.content[0].text, /outside-link  \(symbolic link\)/);
+  assert.doesNotMatch(rootListing.content[0].text, /private.txt/);
+});
+
+test("path resolver still creates nested local parents and supports internal symlinks", async () => {
+  await initialized;
+  const result = await request("tools/call", {
+    name: "scratchpad", arguments: { subpath: "local/nested/file.txt" },
+  });
+  assert.equal(result.isError, false);
+  assert.equal(fs.statSync(path.join(scratchpad, "local/nested")).isDirectory(), true);
+  fs.symlinkSync(path.join(scratchpad, "local"), path.join(scratchpad, "internal-link"));
+  const internal = await request("tools/call", {
+    name: "scratchpad", arguments: { subpath: "internal-link/more/file.txt" },
+  });
+  assert.equal(internal.isError, false);
+  assert.equal(fs.statSync(path.join(scratchpad, "local/more")).isDirectory(), true);
+});
+
+test("listing missing paths or regular files returns an error instead of an empty directory", async () => {
+  await initialized;
+  for (const subpath of ["missing-directory", "not-html.txt"]) {
+    const result = await request("tools/call", { name: "scratchpad_list", arguments: { subpath } });
+    assert.equal(result.isError, true);
+  }
+});
+
+
+test("opens two independently fingerprinted revisions without exposing HTML in receipts", async () => {
+  await initialized;
+  fs.writeFileSync(path.join(scratchpad, "previous.html"), "<title>Earlier</title><p>previous-private-body</p>");
+  const result = await request("tools/call", {
+    name: "open_html", arguments: { subpath: "decision.html", revision: "R2", previous_subpath: "previous.html", previous_revision: "R1" },
+  });
+  assert.equal(result.isError, false);
+  assert.equal(result.structuredContent.artifact.revision, "R2");
+  assert.equal(result.structuredContent.previous.revision, "R1");
+  assert.notEqual(result.structuredContent.artifact.sha256, result.structuredContent.previous.sha256);
+  assert.match(result._meta.artifact.previous.html, /previous-private-body/);
+  assert.doesNotMatch(JSON.stringify(result.structuredContent), /previous-private-body/);
+  assert.doesNotMatch(JSON.stringify(result.content), /previous-private-body/);
+});
+
+test("comparison rejects an invalid previous file instead of silently dropping it", async () => {
+  await initialized;
+  const result = await request("tools/call", {
+    name: "open_html", arguments: { subpath: "decision.html", previous_subpath: "escape.html" },
+  });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /outside the scratchpad/);
 });

@@ -240,3 +240,7 @@ host browser screenshot tool instead.
 ## License
 
 MIT
+
+## Author
+
+Made by [Sergey Moloman](https://moloman.dev), AI product engineer.
